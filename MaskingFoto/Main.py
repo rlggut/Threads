@@ -1,11 +1,12 @@
 from tkinter import *
 from tkinter import filedialog
 from PIL import Image, ImageTk
-import sys
 from Matrix import *
 from ImageProcess import *
 import re
 import time
+import threading
+import concurrent.futures
 
 class App:
     def __init__(self):
@@ -93,9 +94,13 @@ class App:
         self.canvasThreads=[]
         self.с_imageThreads=[]
         self.lblThreads=[]
+        self.imageMaskedTh=[]
+        self.photoTh=[]
         for i in range(4):
+            self.imageMaskedTh.append(self.image)
+            self.photoTh.append(self.photo)
             self.canvasThreads.append(Canvas(self.frame, height=self.canvasH, width=self.canvasW))
-            self.с_imageThreads.append(self.canvasThreads[i].create_image(0, 0, anchor='nw'))
+            self.с_imageThreads.append(self.canvasThreads[i].create_image(0, 0, anchor='nw', image=self.photoTh[i]))
             self.canvasThreads[i].create_line(0, 0, self.canvasW, self.canvasH)
             self.canvasThreads[i].create_line(0, self.canvasH, self.canvasW, 0)
             self.canvasThreads[i].grid(column=5+i, row=1, rowspan=12)
@@ -139,14 +144,33 @@ class App:
         factorW = self.canvasW / self.image.width
         factorH = self.canvasH / self.image.height
         factor=min(factorW, factorH)
-        self.image=self.image.resize((int(factor*self.image.width), int(factor*self.image.height)))
-        self.photo = ImageTk.PhotoImage(self.image)
+        self.imageW=int(factor * self.image.width)
+        self.imageH=int(factor * self.image.height)
+        self.photo = ImageTk.PhotoImage(self.image.resize((self.imageW, self.imageH)))
         self.с_image = self.canvasOrig.create_image(0, 0, anchor='nw', image=self.photo)
 
         self.imageGrey = self.__getGrey()
         self.imageGrey.load()
         self.photoGrey = ImageTk.PhotoImage(self.imageGrey)
         self.__getMaskPic()
+    def __ThreadResearch(self, n):
+        self.canvasThreads[n].delete("all")
+        w=self.imageGrey.width/2
+        h=self.imageGrey.height/2
+        x1 = int((n%2)*w)
+        y1 = int((n//2)*h)
+        x2 = int((n%2+1)*w)
+        y2 = int(((n//2)+1)*h)
+        crops = self.imageGrey.crop((x1, y1, x2, y2))
+        self.imageMaskedTh[n] = maskedImageMatrix(crops, self.matrX, self.matrY, self.edge)
+        self.photoTh[n] = ImageTk.PhotoImage(self.imageMaskedTh[n].resize((self.imageW//2, self.imageH//2)))
+        self.с_imageThreads[n] = self.canvasThreads[n].create_image(0, 0, anchor='nw', image=self.photoTh[n])
+        self.canvasSumm.create_image(int((n%2)*self.imageW/2), int((n//2)*self.imageH/2), anchor='nw', image=self.photoTh[n])
+        self.countThr+=1
+        if(self.countThr==4):
+            endThread = time.time() - self.startThread
+            self.lblTimeSumm['text']='Время на потоки: '+str(endThread)
+
     def __getMaskPic(self):
         self.canvasOne.delete("all")
         if(self.filename==""):
@@ -156,12 +180,20 @@ class App:
             self.edgeSpin.insert(0, str(self.edge))
         self.edge=int(self.edgeSpin.get())
         self.__getMatrXY()
-        start = time.time()
+        startOne = time.time()
         self.imageMasked = maskedImageMatrix(self.imageGrey, self.matrX, self.matrY, self.edge)
-        self.photoMasked = ImageTk.PhotoImage(self.imageMasked)
+        self.photoMasked = ImageTk.PhotoImage(self.imageMasked.resize((self.imageW, self.imageH)))
         self.с_imageMasked = self.canvasOne.create_image(0, 0, anchor='nw', image=self.photoMasked)
-        end = time.time() - start
-        self.lblTimeUniq['text']='Время на поток: '+str(end)
+        endOne = time.time() - startOne
+        self.lblTimeUniq['text']='Время на поток: '+str(endOne)
+
+        self.canvasSumm.delete("all")
+        self.startThread = time.time()
+        self.countThr=0
+        threads=[]
+        for i in range(4):
+            threads.append(threading.Thread(target=self.__ThreadResearch, args=(i,)))
+            threads[i].start()
     def __getMatrXY(self):
         self.matrX = Matrix(3, 3)
         matr = []
