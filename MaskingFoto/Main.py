@@ -14,7 +14,7 @@ class App:
         self.window.title("Маскирование изображения")
         self.canvasW = 200
         self.canvasH = 200
-        size=""+str(int(self.canvasW*7.5))+"x"+str(int(self.canvasH *2.45))
+        size=""+str(int(self.canvasW*4.5))+"x"+str(int(self.canvasH *1.45))
         self.window.geometry(size)
         self.frame = Frame(self.window)
         self.frame.grid()
@@ -85,48 +85,45 @@ class App:
         self.btnRecalc = Button(self.frame, text="Пересчет", command=self.__getMaskPic, state=DISABLED)
         self.btnRecalc.grid(column=0, row=11, columnspan=3)
 
+        self.lblThreads = Label(self.frame, text="Количество потоков")
+        self.lblThreads.grid(column=0, row=12, columnspan=3)
+        self.threadSpin = Spinbox(self.frame, from_ =1, to_=8, width=5, command=self.__getMaskPic)
+        self.threadSpin.grid(column=3, row=12)
+        self.threadNum=4
+        self.threadSpin.delete(0, len(self.threadSpin.get()))
+        self.threadSpin.insert(0, '4')
+
+
         self.lblOrig = Label(self.frame, text="Исходное изображение")
         self.lblOrig.grid(column=4, row=0)
         self.canvasOrig = Canvas(self.frame, height=self.canvasH, width=self.canvasW)
         self.с_image = self.canvasOrig.create_image(0, 0, anchor='nw', image=self.photo)
         self.canvasOrig.grid(column=4, row=1, rowspan=12)
 
-        self.canvasThreads=[]
-        self.с_imageThreads=[]
-        self.lblThreads=[]
-        self.imageMaskedTh=[]
-        self.photoTh=[]
-        for i in range(4):
-            self.imageMaskedTh.append(self.image)
-            self.photoTh.append(self.photo)
-            self.canvasThreads.append(Canvas(self.frame, height=self.canvasH, width=self.canvasW))
-            self.с_imageThreads.append(self.canvasThreads[i].create_image(0, 0, anchor='nw', image=self.photoTh[i]))
-            self.canvasThreads[i].create_line(0, 0, self.canvasW, self.canvasH)
-            self.canvasThreads[i].create_line(0, self.canvasH, self.canvasW, 0)
-            self.canvasThreads[i].grid(column=5+i, row=1, rowspan=12)
-            self.lblThreads.append(Label(self.frame, text=str(i+1)+" -й поток"))
-            self.lblThreads[i].grid(column=5+i, row=0)
-
-        self.lblSumm=Label(self.frame, text="Сложение результатов")
-        self.lblSumm.grid(column=9, row=0)
-        self.canvasSumm = Canvas(self.frame, height=self.canvasH, width=self.canvasW)
-        self.с_imageSumm = self.canvasSumm.create_image(0, 0, anchor='nw', image=self.photo)
-        self.canvasSumm.create_line(0, 0, self.canvasW, self.canvasH)
-        self.canvasSumm.create_line(0, self.canvasH, self.canvasW, 0)
-        self.canvasSumm.grid(column=9, row=1,rowspan=12)
-
         self.lblUniq=Label(self.frame, text="Одним потоком")
-        self.lblUniq.grid(column=4, row=13)
+        self.lblUniq.grid(column=5, row=0)
         self.canvasOne = Canvas(self.frame, height=self.canvasH, width=self.canvasW)
         self.с_imageMasked = self.canvasOne.create_image(0, 0, anchor='nw', image=self.photo)
         self.canvasOne.create_line(0, 0, self.canvasW, self.canvasH)
         self.canvasOne.create_line(0, self.canvasH, self.canvasW, 0)
-        self.canvasOne.grid(column=4, row=14,rowspan=12)
+        self.canvasOne.grid(column=5, row=1,rowspan=12)
+
+        self.photoTh=[]
+        for i in range(8):
+            self.photoTh.append(self.image)
+        self.lblSumm=Label(self.frame, text="Поточный результат")
+        self.lblSumm.grid(column=6, row=0)
+        self.canvasSumm = Canvas(self.frame, height=self.canvasH, width=self.canvasW)
+        self.с_imageSumm = self.canvasSumm.create_image(0, 0, anchor='nw', image=self.photo)
+        self.canvasSumm.create_line(0, 0, self.canvasW, self.canvasH)
+        self.canvasSumm.create_line(0, self.canvasH, self.canvasW, 0)
+        self.canvasSumm.grid(column=6, row=1,rowspan=12)
+
 
         self.lblTimeUniq=Label(self.frame, text="Время на один поток: --")
         self.lblTimeUniq.grid(column=5, row=13)
         self.lblTimeSumm=Label(self.frame, text="Время на потоки:     --")
-        self.lblTimeSumm.grid(column=5, row=14)
+        self.lblTimeSumm.grid(column=6, row=13)
 
         self.window.mainloop()
 
@@ -154,20 +151,18 @@ class App:
         self.photoGrey = ImageTk.PhotoImage(self.imageGrey)
         self.__getMaskPic()
     def __ThreadResearch(self, n):
-        self.canvasThreads[n].delete("all")
-        w=self.imageGrey.width/2
-        h=self.imageGrey.height/2
-        x1 = int((n%2)*w)
-        y1 = int((n//2)*h)
-        x2 = int((n%2+1)*w)
-        y2 = int(((n//2)+1)*h)
+        w=self.imageGrey.width//self.threadNum
+        h=self.imageGrey.height
+        x1 = n*w
+        y1 = 0
+        x2 = (n+1)*w
+        y2 = h
         crops = self.imageGrey.crop((x1, y1, x2, y2))
-        self.imageMaskedTh[n] = maskedImageMatrix(crops, self.matrX, self.matrY, self.edge)
-        self.photoTh[n] = ImageTk.PhotoImage(self.imageMaskedTh[n].resize((self.imageW//2, self.imageH//2)))
-        self.с_imageThreads[n] = self.canvasThreads[n].create_image(0, 0, anchor='nw', image=self.photoTh[n])
-        self.canvasSumm.create_image(int((n%2)*self.imageW/2), int((n//2)*self.imageH/2), anchor='nw', image=self.photoTh[n])
+        imageMaskedTh = maskedImageMatrix(crops, self.matrX, self.matrY, self.edge)
+        self.photoTh[n] = ImageTk.PhotoImage(imageMaskedTh.resize((self.imageW//self.threadNum, self.imageH)))
+        self.canvasSumm.create_image(int(n*self.imageW/self.threadNum), 0, anchor='nw', image=self.photoTh[n])
         self.countThr+=1
-        if(self.countThr==4):
+        if(self.countThr==self.threadNum):
             endThread = time.time() - self.startThread
             self.lblTimeSumm['text']='Время на потоки: '+str(endThread)
 
@@ -188,10 +183,11 @@ class App:
         self.lblTimeUniq['text']='Время на поток: '+str(endOne)
 
         self.canvasSumm.delete("all")
+        self.threadNum=int(self.threadSpin.get())
         self.startThread = time.time()
         self.countThr=0
         threads=[]
-        for i in range(4):
+        for i in range(self.threadNum):
             threads.append(threading.Thread(target=self.__ThreadResearch, args=(i,)))
             threads[i].start()
     def __getMatrXY(self):
